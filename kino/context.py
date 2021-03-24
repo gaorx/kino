@@ -107,13 +107,7 @@ class Context:
 
     @staticmethod
     def curl(url, as_text=True, strip=False):
-        if as_text:
-            r = requests.get(url).text
-            if strip:
-                r = r.strip()
-            return r
-        else:
-            return requests.get(url).content
+        return util.curl(url, as_text=as_text, strip=strip)
 
 
 

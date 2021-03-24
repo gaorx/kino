@@ -88,7 +88,7 @@ class UrlScriptSource(Source):
         return self.script_url
 
     def read_script(self):
-        return requests.get(self.script_url).content
+        return util.curl(self.script_url, as_text=False)
 
     def compute_source(self, source_filename):
         if os.path.isabs(source_filename):
@@ -98,7 +98,7 @@ class UrlScriptSource(Source):
 
     def read_bytes(self, source_filename):
         url = self.compute_source(source_filename)
-        return requests.get(url).content
+        return util.curl(url, as_text=False)
 
     def exists(self, source_filename):
         url = self.compute_source(source_filename)

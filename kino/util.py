@@ -3,6 +3,7 @@ import os
 import pathlib
 import contextlib
 import sys
+import requests
 from rich.console import Console
 
 _stdout_console = Console(file=sys.stdout)
@@ -27,6 +28,25 @@ def work_in(work_dir):
 
 def mkdir_p(dirname):
     pathlib.Path(dirname).mkdir(parents=True, exist_ok=True)
+
+
+def curl(url, as_text=True, strip=False):
+    resp = None
+    try:
+        resp = requests.get(url)
+        if resp.status_code != 200:
+            raise Exception("illegal status code: {}".format(resp.status_code))
+        if as_text:
+            r = resp.text
+            if strip:
+                r = r.strip()
+            return r
+        else:
+            return resp.content
+    finally:
+        if resp is not None:
+            resp.close()
+
 
 
 def console_log(msg):
