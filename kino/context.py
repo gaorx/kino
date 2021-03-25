@@ -91,7 +91,10 @@ class Context:
 
     def get_args(self, args_spec):
         def f(**kwargs):
-            return util.AttrDict(**kwargs.copy())
+            kwargs = kwargs.copy()
+            if 'target_name' not in kwargs:
+                kwargs['target_name'] = self.target_name
+            return util.AttrDict(**kwargs)
 
         for arg_spec in reversed(args_spec):
             f = arg_spec(f)
@@ -101,7 +104,7 @@ class Context:
         ctx = f.make_context("kino script", self._source_args)
         return f.invoke(ctx)
 
-    def mkdir_p(self, dirname):
+    def mkdir(self, dirname):
         util.mkdir_p(dirname)
         self._log_action('mkdir', dirname)
 

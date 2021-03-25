@@ -60,17 +60,18 @@ def main(k):
         k.option('--package', default='', help="com.group.artifact"),
     ])
     if not args.package:
-        args.package = '{}.{}'.format(args.group, args.artifact)
+        args.package = f"{args.group}.{args.artifact}"
     args.package_dirname = args.package.replace('.', '/')
-    k.write('README.md', README, args={'target_name': k.target_name})
+    k.write('README.md', README, args=args)
     k.write('build.gradle', BUILD_GRADLE, args=args)
     k.write('.gitignore', k.curl_gitignore('Java'))
     k.write('src/main/resources/application.properties', '')
-    k.mkdir_p('src/main/resources/static')
-    k.mkdir_p('src/main/resources/templates')
+    k.mkdir('src/main/resources/static')
+    k.mkdir('src/main/resources/templates')
     k.write(f"src/main/java/{args.package_dirname}/App.java", APP_JAVA, args=args)
     k.write(f"src/main/java/{args.package_dirname}/controller/HelloController.java",
             HELLO_CONTROLLER_JAVA, args=args)
-    k.mkdir_p(f"src/main/java/{args.package_dirname}/service")
-    k.mkdir_p(f"src/main/java/{args.package_dirname}/repository")
-    k.mkdir_p(f"src/main/java/{args.package_dirname}/util")
+    k.mkdir(f"src/main/java/{args.package_dirname}/service")
+    k.mkdir(f"src/main/java/{args.package_dirname}/repository")
+    k.mkdir(f"src/main/java/{args.package_dirname}/util")
+    k.log("Start server: '[bold purple u]gradle bootRun[/bold purple u]'")
