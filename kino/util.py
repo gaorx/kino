@@ -10,6 +10,10 @@ _stdout_console = Console(file=sys.stdout)
 _stderr_console = Console(file=sys.stderr)
 
 
+class KinoError(Exception):
+    pass
+
+
 def remove_prefix(s, prefix):
     if not prefix:
         return s
@@ -48,10 +52,21 @@ def curl(url, as_text=True, strip=False):
             resp.close()
 
 
-
 def console_log(msg):
     _stdout_console.print(msg)
 
 
 def console_error(msg):
     _stderr_console.print(msg)
+
+
+def click_show_help(ctx, _param, value):
+    if value and not ctx.resilient_parsing:
+        print(ctx.get_help())
+        ctx.exit()
+
+
+class AttrDict(dict):
+    def __init__(self, *args, **kwargs):
+        super(AttrDict, self).__init__(*args, **kwargs)
+        self.__dict__ = self

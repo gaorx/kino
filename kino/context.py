@@ -2,7 +2,7 @@
 import os
 import json
 import jinja2
-import requests
+import click
 
 from . import util
 
@@ -17,15 +17,17 @@ class Context:
                 return None
             return getattr(self.context, item)
 
-    def __init__(self, target_dir, source):
+    def __init__(self, target_dir, source, source_args, allow_overwrite=False):
         target_dir = os.path.abspath(target_dir)
         if not os.path.isdir(target_dir):
             raise ValueError("target directory error")
-        self.target_dir = target_dir
-        self.source = source
+        self._target_dir = target_dir
+        self._source = source
+        self._source_args = list(source_args)
+        self._allow_overwrite = allow_overwrite
 
     def run(self, f):
-        with util.work_in(self.target_dir):
+        with util.work_in(self._target_dir):
             f(Context.Proxy(self))
 
     def run_py(self, py_source):
@@ -34,17 +36,38 @@ class Context:
         main_fn = scope.get('main')
         if not callable(main_fn):
             raise Exception("no main function in kino script file")
-        with util.work_in(self.target_dir):
+        with util.work_in(self._target_dir):
             main_fn(Context.Proxy(self))
 
-    @staticmethod
-    def _write_bytes(filename, data, mkdir=False):
+    def _write_bytes(self, filename, data, mkdir=False):
         filename = os.path.abspath(filename)
+        if not self._allow_overwrite:
+            if os.path.exists(filename):
+                raise util.KinoError("overwrite {}, use --overwrite option".format(filename))
         if mkdir:
             util.mkdir_p(os.path.dirname(filename))
 
         with open(filename, 'wb') as f:
             f.write(data)
+
+    def _log_action(self, verb, obj):
+        self.log("[green]{}[/green] {}", verb, obj)
+
+    @property
+    def target_dir(self):
+        return self._target_dir
+
+    @property
+    def source_args(self):
+        return self._source_args
+
+    @property
+    def target_name(self):
+        return os.path.basename(self._target_dir)
+
+    @staticmethod
+    def raise_error(msg):
+        raise util.KinoError(msg)
 
     @staticmethod
     def log(msg, *args, **kwargs):
@@ -59,18 +82,38 @@ class Context:
         return util.work_in(wd)
 
     @staticmethod
-    def mkdir_p(dirname):
+    def option(*param_decls, **attrs):
+        return click.option(*param_decls, **attrs)
+
+    @staticmethod
+    def argument(*param_decls, **attrs):
+        return click.argument(*param_decls, **attrs)
+
+    def get_args(self, args_spec):
+        def f(**kwargs):
+            return util.AttrDict(**kwargs.copy())
+
+        for arg_spec in reversed(args_spec):
+            f = arg_spec(f)
+        f = click.option('-H', '--HELP', is_flag=True, expose_value=False,
+                         help="Show this message and exit", is_eager=True, callback=util.click_show_help)(f)
+        f = click.command(add_help_option=False)(f)
+        ctx = f.make_context("kino script", self._source_args)
+        return f.invoke(ctx)
+
+    def mkdir_p(self, dirname):
         util.mkdir_p(dirname)
+        self._log_action('mkdir', dirname)
 
     def copy(self, filename, source=None, mkdir=True):
         if not source:
             source = filename
-        content = self.source.read_bytes(source)
+        content = self._source.read_bytes(source)
         self._write_bytes(filename, content, mkdir=mkdir)
         if source == filename:
-            self.log("[green]copy[/green] {}", filename)
+            self._log_action('copy ', filename)
         else:
-            self.log("[green]copy[/green] {} <- {}", filename, source)
+            self._log_action('copy ', '{} <- {}'.format(filename, source))
 
     def write(self, filename, content=None, source=None, args=None, mkdir=True, content_encoding='utf-8'):
         if content is not None:
@@ -81,7 +124,7 @@ class Context:
             else:
                 raise ValueError("illegal content type")
         elif source is not None:
-            content = self.source.read_bytes(source)
+            content = self._source.read_bytes(source)
         else:
             raise ValueError("no content/source")
 
@@ -96,7 +139,7 @@ class Context:
         return os.path.exists(filename)
 
     def exists_source(self, source):
-        return self.source.exists(source)
+        return self._source.exists(source)
 
     @staticmethod
     def to_json(value, pretty=True, sort_keys=False):
@@ -108,6 +151,23 @@ class Context:
     @staticmethod
     def curl(url, as_text=True, strip=False):
         return util.curl(url, as_text=as_text, strip=strip)
+
+    @staticmethod
+    def curl_gitignore(lang, mac_os=True, intellij_idea=True, vscode=True, netbeans=False):
+        if not lang:
+            raise ValueError("no language for .gitignore")
+        from . import gitignore
+        gitignore_url = 'https://raw.githubusercontent.com/github/gitignore/master/{}.gitignore'.format(lang)
+        r = util.curl(gitignore_url)
+        if mac_os:
+            r += gitignore.macos
+        if intellij_idea:
+            r += gitignore.intellij_idea
+        if vscode:
+            r += gitignore.vscode
+        if netbeans:
+            r += gitignore.netbeans
+        return r
 
 
 
