@@ -1,8 +1,9 @@
-
-import os
 import json
-import jinja2
+import os
+import shutil
+
 import click
+import jinja2
 
 from . import util
 
@@ -53,6 +54,8 @@ class Context:
     def _log_action(self, verb, obj):
         self.log("[green]{}[/green] {}", verb, obj)
 
+    # properties
+
     @property
     def target_dir(self):
         return self._target_dir
@@ -69,6 +72,21 @@ class Context:
     def raise_error(msg):
         raise util.KinoError(msg)
 
+    # import
+
+    def import_(self, source_script):
+        def import_one(s):
+            py = self.read_source(s)
+            scope = {}
+            exec(py, scope, scope)
+            return util.AttrDict(**scope)
+        if isinstance(source_script, str):
+            return import_one(source_script)
+        else:
+            return tuple(map(import_one, list(source_script)))
+
+    # log
+
     @staticmethod
     def log(msg, *args, **kwargs):
         util.console_log(msg.format(*args, **kwargs))
@@ -77,9 +95,7 @@ class Context:
     def log_error(msg, *args, **kwargs):
         util.console_error(msg.format(*args, **kwargs))
 
-    @staticmethod
-    def work_in(wd):
-        return util.work_in(wd)
+    # args
 
     @staticmethod
     def option(*param_decls, **attrs):
@@ -103,6 +119,17 @@ class Context:
         f = click.command(add_help_option=False)(f)
         ctx = f.make_context("kino script", self._source_args)
         return f.invoke(ctx)
+
+    # source
+
+    def exists_source(self, source):
+        return self._source.exists(source)
+
+    def read_source(self, source, as_text=True, encoding='utf-8'):
+        data = self._source.read_bytes(source)
+        return data.decode(encoding) if as_text else data
+
+    # target
 
     def mkdir(self, dirname):
         util.mkdir_p(dirname)
@@ -137,12 +164,36 @@ class Context:
         self._write_bytes(filename, content, mkdir=mkdir)
         self.log("[green]write[/green] {}", filename)
 
+    def download(self, filename, url, mkdir=True):
+        data = util.curl(url, as_text=False, strip=False)
+        self._write_bytes(filename, data, mkdir=mkdir)
+
+    def wget(self, filename, url, mkdir=True):
+        self.download(filename, url, mkdir=mkdir)
+
     @staticmethod
     def exists(filename):
         return os.path.exists(filename)
 
-    def exists_source(self, source):
-        return self._source.exists(source)
+    @staticmethod
+    def read(filename, as_text=True, encoding='utf-8'):
+        with open(filename, 'rb') as f:
+            data = f.read()
+            return data.decode(encoding) if as_text else data
+
+    @staticmethod
+    def rm(filename):
+        if os.path.exists(filename):
+            if os.path.isdir(filename):
+                shutil.rmtree(filename)
+            else:
+                os.remove(filename)
+
+    # tools
+
+    @staticmethod
+    def work_in(wd):
+        return util.work_in(wd)
 
     @staticmethod
     def to_json(value, pretty=True, sort_keys=False):
@@ -156,7 +207,7 @@ class Context:
         return util.curl(url, as_text=as_text, strip=strip)
 
     @staticmethod
-    def curl_gitignore(lang, mac_os=True, intellij_idea=True, vscode=True, netbeans=False):
+    def curl_gitignore(lang, mac_os=True, intellij_idea=True, vscode=True, netbeans=True, other=''):
         if not lang:
             raise ValueError("no language for .gitignore")
         from . import gitignore
@@ -170,8 +221,6 @@ class Context:
             r += gitignore.vscode
         if netbeans:
             r += gitignore.netbeans
+        if other:
+            r += '\n' + other + '\n'
         return r
-
-
-
-
