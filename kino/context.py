@@ -15,7 +15,7 @@ class Context:
 
         def __getattr__(self, item):
             if item.startswith('_') or item in ['run', 'run_py']:
-                return None
+                raise AttributeError("Context object has no attribute '{}'".format(item))
             return getattr(self.context, item)
 
     def __init__(self, target_dir, source, source_args, allow_overwrite=False):
